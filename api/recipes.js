@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   try {
     const qs = new URLSearchParams({
       apiKey: SPOONACULAR_KEY,
-      number: 20, // fetch more so we can filter down to allowed sources
+      number: 60, // fetch more so we can filter down to allowed sources
       addRecipeInformation: true,
       addRecipeNutrition: true,
       fillIngredients: true,
