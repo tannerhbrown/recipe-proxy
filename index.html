@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthy Recipe Feed</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { background: #fff; color: #111; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #121212; color: #f0f0f0; }
+    }
+    a { color: inherit; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    const PROXY_URL = "";  // same origin — index.html is served from the same Vercel project
+    const STORAGE_KEY = "healthy-recipe-cookbook-v1";
+    const CACHE_KEY = "healthy-recipe-cache-v1";
+    const CACHE_TTL = 1000 * 60 * 30;
+    const FILTERS = ["All", "Quick & Easy", "High Protein", "Low Carb", "Meal Prep", "Anti-Inflammatory"];
+
+    function loadCache() {
+      try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+    }
+    function saveCache(c) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {} 
+    }
+
+    async function fetchRecipes(filter, signal) {
+      const cache = loadCache();
+      const hit = cache[filter];
+      if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.recipes;
+
+      const resp = await fetch(
+        `${PROXY_URL}/api/recipes?filter=${encodeURIComponent(filter)}`,
+        { signal }
+      );
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`Proxy error ${resp.status}: ${body.slice(0, 200)}`);
+      }
+      const data = await resp.json();
+      if (!data.recipes?.length) throw new Error("No recipes returned");
+
+      const updated = loadCache();
+      updated[filter] = { ts: Date.now(), recipes: data.recipes };
+      saveCache(updated);
+      return data.recipes;
+    }
+
+    const TAG_COLORS = {
+      "Quick & Easy":      { light: { bg: "#EAF3DE", color: "#3B6D11" }, dark: { bg: "#1a2e10", color: "#a3d470" } },
+      "High Protein":      { light: { bg: "#E6F1FB", color: "#185FA5" }, dark: { bg: "#0e2340", color: "#7ab8f5" } },
+      "Low Carb":          { light: { bg: "#FAEEDA", color: "#854F0B" }, dark: { bg: "#2e1f08", color: "#f5b84a" } },
+      "Meal Prep":         { light: { bg: "#EEEDFE", color: "#534AB7" }, dark: { bg: "#1c1a40", color: "#a89cf5" } },
+      "Anti-Inflammatory": { light: { bg: "#FBEAF0", color: "#993556" }, dark: { bg: "#2e1020", color: "#f590b0" } },
+      "Healthy":           { light: { bg: "#E1F5EE", color: "#0F6E56" }, dark: { bg: "#0a2e20", color: "#5dcaa5" } },
+    };
+
+    function useIsDark() {
+      const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+      useEffect(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const h = e => setDark(e.matches);
+        mq.addEventListener("change", h);
+        return () => mq.removeEventListener("change", h);
+      }, []);
+      return dark;
+    }
+
+    function Tag({ label }) {
+      const dark = useIsDark();
+      const s = TAG_COLORS[label];
+      const c = s ? (dark ? s.dark : s.light) : (dark ? { bg: "#2a2a28", color: "#aaa" } : { bg: "#F1EFE8", color: "#5F5E5A" });
+      return <span style={{ background: c.bg, color: c.color, fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 99, whiteSpace: "nowrap", display: "inline-block" }}>{label}</span>;
+    }
+
+    function Btn({ onClick, disabled, children, style = {} }) {
+      const dark = useIsDark();
+      return (
+        <button onClick={onClick} disabled={disabled} style={{ background: "transparent", border: `0.5px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, borderRadius: 8, padding: "8px 16px", cursor: disabled ? "not-allowed" : "pointer", fontSize: 14, color: dark ? "#e0e0e0" : "#1a1a1a", opacity: disabled ? 0.4 : 1, ...style }}>
+          {children}
+        </button>
+      );
+    }
+
+    function RecipeCardImage({ recipe, size = 72 }) {
+      const dark = useIsDark();
+      const [imgErr, setImgErr] = useState(false);
+      const base = recipe.color || "#4a9a6a";
+      const imgSrc = recipe.image || recipe.imageUrl || null;
+      if (imgSrc && !imgErr) {
+        return <img src={imgSrc} alt={recipe.title} onError={() => setImgErr(true)}
+          style={{ width: size, minWidth: size, height: size, borderRadius: 10, objectFit: "cover", flexShrink: 0, display: "block" }} />;
+      }
+      return (
+        <div style={{ width: size, minWidth: size, height: size, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: dark ? `linear-gradient(135deg, ${base}55 0%, ${base}22 100%)` : `linear-gradient(135deg, ${base}33 0%, ${base}66 100%)` }}>
+          <span style={{ fontSize: size * 0.45, lineHeight: 1 }}>{recipe.emoji || "🥗"}</span>
+        </div>
+      );
+    }
+
+    function RecipeCard({ recipe, onOpen, onSave, saved }) {
+      const dark = useIsDark();
+      const cardBg = dark ? "#1e1e1e" : "#ffffff";
+      const border = dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.12)";
+      const titleColor = dark ? "#f0f0f0" : "#111";
+      const subColor = dark ? "#aaa" : "#555";
+      const metaColor = dark ? "#888" : "#777";
+      const linkColor = dark ? "#7ab8f5" : "#185FA5";
+
+      return (
+        <div style={{ background: cardBg, border, borderRadius: 14, overflow: "hidden", cursor: "pointer" }}>
+          <div onClick={() => onOpen(recipe)} style={{ display: "flex", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>
+            <RecipeCardImage recipe={recipe} size={72} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: metaColor, marginBottom: 3 }}>
+                    {recipe.url
+                      ? <a href={recipe.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: linkColor, textDecoration: "none" }}>{recipe.source} ↗</a>
+                      : recipe.source}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: titleColor, lineHeight: 1.4, marginBottom: 5 }}>{recipe.title}</div>
+                  <div style={{ fontSize: 13, color: subColor, lineHeight: 1.6, marginBottom: 8 }}>{recipe.description}</div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, color: metaColor }}>⏱ {recipe.time}</span>
+                    <span style={{ fontSize: 12, color: metaColor }}>🍽 {recipe.servings} servings</span>
+                    {recipe.nutrition?.calories > 0 && <span style={{ fontSize: 12, color: metaColor }}>{recipe.nutrition.calories} cal</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{recipe.tags?.map(t => <Tag key={t} label={t} />)}</div>
+                </div>
+                <button onClick={e => { e.stopPropagation(); onSave(recipe); }} style={{ background: saved ? (dark ? "#1a3320" : "#eaf3de") : "transparent", border: `0.5px solid ${saved ? (dark ? "#3a7a40" : "#3B6D11") : (dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)")}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 15, flexShrink: 0 }}>
+                  {saved ? "🔖" : "🏷"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SkeletonCard({ dark }) {
+      const bg = dark ? "#2a2a2a" : "#e8e8e8";
+      const line = dark ? "#333" : "#d8d8d8";
+      return (
+        <div style={{ background: dark ? "#1e1e1e" : "#fff", border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ display: "flex", gap: 12, padding: "12px 14px" }}>
+            <div style={{ width: 72, minWidth: 72, height: 72, borderRadius: 10, background: bg }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 11, width: "35%", background: line, borderRadius: 6, marginBottom: 9 }} />
+              <div style={{ height: 17, width: "70%", background: bg, borderRadius: 6, marginBottom: 9 }} />
+              <div style={{ height: 12, width: "92%", background: line, borderRadius: 6, marginBottom: 6 }} />
+              <div style={{ height: 12, width: "55%", background: line, borderRadius: 6, marginBottom: 12 }} />
+              <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ height: 20, width: 70, background: bg, borderRadius: 99 }} />
+                <div style={{ height: 20, width: 80, background: bg, borderRadius: 99 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function CookingMode({ recipe, onClose }) {
+      const dark = useIsDark();
+      const [step, setStep] = useState(0);
+      const [servings, setServings] = useState(recipe.servings || 2);
+      const [timerSecs, setTimerSecs] = useState(0);
+      const [running, setRunning] = useState(false);
+      const ratio = servings / (recipe.servings || 2);
+      const bg = dark ? "#121212" : "#fff";
+      const cardBg = dark ? "#1e1e1e" : "#f8f8f8";
+      const border = dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)";
+      const titleColor = dark ? "#f0f0f0" : "#111";
+      const subColor = dark ? "#ccc" : "#333";
+      const metaColor = dark ? "#888" : "#777";
+      const divider = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+      const linkColor = dark ? "#7ab8f5" : "#185FA5";
+
+      useEffect(() => {
+        if (!running) return;
+        const id = setInterval(() => setTimerSecs(s => { if (s <= 1) { setRunning(false); return 0; } return s - 1; }), 1000);
+        return () => clearInterval(id);
+      }, [running]);
+
+      const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      const scaleIng = ing => ing.replace(/(\d+\.?\d*)/g, (_, n) => {
+        const sc = parseFloat(n) * ratio; return sc % 1 === 0 ? String(Math.round(sc)) : sc.toFixed(1);
+      });
+
+      return (
+        <div style={{ background: bg, minHeight: "100vh", padding: 16, maxWidth: 600, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <Btn onClick={onClose} style={{ padding: "6px 12px", fontSize: 13 }}>← Back</Btn>
+            <span style={{ fontSize: 11, color: metaColor, fontWeight: 500, letterSpacing: "0.06em" }}>COOKING MODE</span>
+          </div>
+          <RecipeCardImage recipe={recipe} size={100} />
+          <div style={{ marginBottom: 14, marginTop: 14 }}>
+            <div style={{ fontSize: 11, color: metaColor, marginBottom: 3 }}>{recipe.source}</div>
+            <div style={{ fontSize: 20, fontWeight: 500, color: titleColor, lineHeight: 1.3, marginBottom: 6 }}>{recipe.title}</div>
+            {recipe.url && <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: linkColor, textDecoration: "none", display: "block", marginBottom: 8 }}>View original recipe ↗</a>}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{recipe.tags?.map(t => <Tag key={t} label={t} />)}</div>
+          </div>
+          <div style={{ background: cardBg, border, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: metaColor }}>Servings:</span>
+              <Btn onClick={() => setServings(s => Math.max(1, s - 1))} style={{ padding: "2px 10px", fontSize: 16 }}>−</Btn>
+              <span style={{ fontWeight: 500, fontSize: 16, color: titleColor, minWidth: 20, textAlign: "center" }}>{servings}</span>
+              <Btn onClick={() => setServings(s => s + 1)} style={{ padding: "2px 10px", fontSize: 16 }}>+</Btn>
+              {recipe.nutrition?.calories > 0 && <span style={{ fontSize: 12, color: metaColor, marginLeft: "auto" }}>~{Math.round(recipe.nutrition.calories * ratio)} cal · {Math.round(recipe.nutrition.protein * ratio)}g protein</span>}
+            </div>
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, color: metaColor, letterSpacing: "0.06em", marginBottom: 10 }}>INGREDIENTS</div>
+            {recipe.ingredients?.map((ing, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, fontSize: 14, lineHeight: 1.6, padding: "4px 0", borderBottom: `0.5px solid ${divider}` }}>
+                <span style={{ color: metaColor, flexShrink: 0 }}>·</span>
+                <span style={{ color: subColor }}>{ratio !== 1 ? scaleIng(ing) : ing}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, color: metaColor, letterSpacing: "0.06em", marginBottom: 10 }}>STEPS — {step + 1} / {recipe.steps?.length}</div>
+            <div style={{ background: cardBg, border, borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 11, color: metaColor, marginBottom: 8 }}>Step {step + 1}</div>
+              <div style={{ fontSize: 15, color: subColor, lineHeight: 1.7 }}>{recipe.steps?.[step]}</div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              <Btn onClick={() => setStep(s => s - 1)} disabled={step === 0} style={{ flex: 1 }}>← Prev</Btn>
+              <Btn onClick={() => setStep(s => s + 1)} disabled={step === (recipe.steps?.length || 1) - 1} style={{ flex: 1 }}>Next →</Btn>
+            </div>
+          </div>
+          <div style={{ background: cardBg, border, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: titleColor, marginBottom: 10 }}>Timer</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[5, 10, 15, 20, 30].map(m => <Btn key={m} onClick={() => { setTimerSecs(m * 60); setRunning(false); }} style={{ padding: "4px 10px", fontSize: 13 }}>{m}m</Btn>)}
+            </div>
+            {timerSecs > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+                <span style={{ fontSize: 22, fontWeight: 500, fontFamily: "monospace", color: titleColor }}>{fmt(timerSecs)}</span>
+                <Btn onClick={() => setRunning(r => !r)} style={{ padding: "5px 14px" }}>{running ? "Pause" : "Start"}</Btn>
+                <Btn onClick={() => { setTimerSecs(0); setRunning(false); }} style={{ padding: "5px 10px", fontSize: 12 }}>Reset</Btn>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function CookbookView({ cookbook, onOpen, onRemove, onBack }) {
+      const dark = useIsDark();
+      const titleColor = dark ? "#f0f0f0" : "#111";
+      const metaColor = dark ? "#888" : "#777";
+      const cardBg = dark ? "#1e1e1e" : "#fff";
+      const border = dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.12)";
+      return (
+        <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <Btn onClick={onBack} style={{ padding: "6px 12px", fontSize: 13 }}>← Feed</Btn>
+            <span style={{ fontSize: 17, fontWeight: 500, color: titleColor }}>My Cookbook</span>
+            <span style={{ fontSize: 13, color: metaColor }}>{cookbook.length} saved</span>
+          </div>
+          {cookbook.length === 0
+            ? <div style={{ textAlign: "center", padding: "3rem 0", color: metaColor, fontSize: 14 }}>No saved recipes yet. Bookmark from the feed!</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {cookbook.map(r => (
+                <div key={r.id} style={{ background: cardBg, border, borderRadius: 14, overflow: "hidden" }}>
+                  <div style={{ display: "flex", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>
+                    <RecipeCardImage recipe={r} size={64} />
+                    <div style={{ flex: 1, cursor: "pointer" }} onClick={() => onOpen(r)}>
+                      <div style={{ fontSize: 12, color: metaColor, marginBottom: 2 }}>{r.source}</div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: titleColor, marginBottom: 6 }}>{r.title}</div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, color: metaColor }}>⏱ {r.time}</span>
+                        <span style={{ fontSize: 12, color: metaColor }}>🍽 {r.servings} servings</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{r.tags?.map(t => <Tag key={t} label={t} />)}</div>
+                    </div>
+                    <Btn onClick={() => onRemove(r.title)} style={{ padding: "5px 10px", fontSize: 12 }}>Remove</Btn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          }
+        </div>
+      );
+    }
+
+    function App() {
+      const dark = useIsDark();
+      const [view, setView] = useState("feed");
+      const [recipes, setRecipes] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState(null);
+      const [activeFilter, setActiveFilter] = useState("All");
+      const [activeRecipe, setActiveRecipe] = useState(null);
+      const [cookbook, setCookbook] = useState([]);
+      const abortRef = useRef(null);
+
+      const bg = dark ? "#121212" : "#fff";
+      const titleColor = dark ? "#f0f0f0" : "#111";
+      const subColor = dark ? "#aaa" : "#555";
+      const metaColor = dark ? "#888" : "#777";
+
+      useEffect(() => {
+        try { const s = localStorage.getItem(STORAGE_KEY); if (s) setCookbook(JSON.parse(s)); } catch {}
+        loadRecipes("All");
+        return () => abortRef.current?.abort();
+      }, []);
+
+      const saveCookbook = cb => {
+        setCookbook(cb);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cb)); } catch {}
+      };
+
+      const loadRecipes = useCallback(async (filter, force = false) => {
+        abortRef.current?.abort();
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        setRecipes([]);
+        setLoading(true);
+        setError(null);
+        try {
+          if (force) { const c = loadCache(); delete c[filter]; saveCache(c); }
+          const recipes = await fetchRecipes(filter, ctrl.signal);
+          if (!ctrl.signal.aborted) setRecipes(recipes);
+        } catch (e) {
+          if (e.name !== "AbortError") setError(e.message || "Couldn't load recipes.");
+        } finally {
+          if (!ctrl.signal.aborted) setLoading(false);
+        }
+      }, []);
+
+      const handleFilter = f => { setActiveFilter(f); loadRecipes(f); };
+      const toggleSave = r => {
+        const exists = cookbook.some(c => c.title === r.title);
+        saveCookbook(exists ? cookbook.filter(c => c.title !== r.title) : [...cookbook, r]);
+      };
+      const isSaved = r => cookbook.some(c => c.title === r.title);
+
+      if (activeRecipe) return <CookingMode recipe={activeRecipe} onClose={() => setActiveRecipe(null)} />;
+      if (view === "cookbook") return <CookbookView cookbook={cookbook} onOpen={setActiveRecipe} onRemove={t => saveCookbook(cookbook.filter(c => c.title !== t))} onBack={() => setView("feed")} />;
+
+      return (
+        <div style={{ background: bg, minHeight: "100vh", padding: 16, maxWidth: 600, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 500, color: titleColor }}>Healthy Recipe Feed</div>
+              <div style={{ fontSize: 13, color: subColor }}>Whole food, real ingredients</div>
+            </div>
+            <button onClick={() => setView("cookbook")} style={{ background: "transparent", border: `0.5px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 13, color: dark ? "#e0e0e0" : "#1a1a1a" }}>
+              🔖 Cookbook{cookbook.length > 0 ? ` (${cookbook.length})` : ""}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+            {FILTERS.map(f => (
+              <button key={f} onClick={() => handleFilter(f)} style={{
+                padding: "5px 12px",
+                border: `1px solid ${activeFilter === f ? (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)") : (dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)")}`,
+                borderRadius: 99, background: activeFilter === f ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)") : "transparent",
+                cursor: "pointer", fontSize: 13, fontWeight: activeFilter === f ? 500 : 400,
+                color: activeFilter === f ? titleColor : metaColor,
+              }}>{f}</button>
+            ))}
+          </div>
+
+          {loading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[1,2,3,4,5].map(i => <SkeletonCard key={i} dark={dark} />)}
+              <div style={{ textAlign: "center", fontSize: 13, color: metaColor, paddingTop: 4 }}>Loading recipes…</div>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div style={{ textAlign: "center", padding: "2rem 0" }}>
+              <div style={{ fontSize: 13, color: "#cc3333", marginBottom: 4 }}>Couldn't load recipes.</div>
+              <div style={{ fontSize: 11, color: metaColor, marginBottom: 14, fontFamily: "monospace", padding: "0 1rem" }}>{error}</div>
+              <Btn onClick={() => loadRecipes(activeFilter, true)}>Try Again</Btn>
+            </div>
+          )}
+
+          {!loading && !error && (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={setActiveRecipe} onSave={toggleSave} saved={isSaved(r)} />)}
+              </div>
+              {recipes.length > 0 && (
+                <div style={{ textAlign: "center", marginTop: 16, paddingBottom: 24 }}>
+                  <Btn onClick={() => loadRecipes(activeFilter, true)}>Refresh Feed ↻</Btn>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
