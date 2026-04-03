@@ -136,31 +136,31 @@
       const linkColor = dark ? "#7ab8f5" : "#185FA5";
 
       return (
-        <div style={{ background: cardBg, border, borderRadius: 14, overflow: "hidden", cursor: "pointer" }}>
-          <div onClick={() => onOpen(recipe)} style={{ display: "flex", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>
-            <RecipeCardImage recipe={recipe} size={72} />
+        <div style={{ background: cardBg, border, borderRadius: 14, overflow: "hidden", cursor: "pointer" }} onClick={() => onOpen(recipe)}>
+          {/* Image + save row */}
+          <div style={{ display: "flex", gap: 12, padding: "12px 14px 8px", alignItems: "flex-start" }}>
+            <RecipeCardImage recipe={recipe} size={64} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: metaColor, marginBottom: 3 }}>
-                    {recipe.url
-                      ? <a href={recipe.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: linkColor, textDecoration: "none" }}>{recipe.source} ↗</a>
-                      : recipe.source}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 500, color: titleColor, lineHeight: 1.4, marginBottom: 5 }}>{recipe.title}</div>
-                  <div style={{ fontSize: 13, color: subColor, lineHeight: 1.6, marginBottom: 8 }}>{recipe.description}</div>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, color: metaColor }}>⏱ {recipe.time}</span>
-                    <span style={{ fontSize: 12, color: metaColor }}>🍽 {recipe.servings} servings</span>
-                    {recipe.nutrition?.calories > 0 && <span style={{ fontSize: 12, color: metaColor }}>{recipe.nutrition.calories} cal</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{recipe.tags?.map(t => <Tag key={t} label={t} />)}</div>
-                </div>
-                <button onClick={e => { e.stopPropagation(); onSave(recipe); }} style={{ background: saved ? (dark ? "#1a3320" : "#eaf3de") : "transparent", border: `0.5px solid ${saved ? (dark ? "#3a7a40" : "#3B6D11") : (dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)")}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 15, flexShrink: 0 }}>
-                  {saved ? "🔖" : "🏷"}
-                </button>
+              <div style={{ fontSize: 12, color: metaColor, marginBottom: 2 }}>
+                {recipe.url
+                  ? <a href={recipe.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: linkColor, textDecoration: "none" }}>{recipe.source} ↗</a>
+                  : recipe.source}
               </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: titleColor, lineHeight: 1.3 }}>{recipe.title}</div>
             </div>
+            <button onClick={e => { e.stopPropagation(); onSave(recipe); }} style={{ background: saved ? (dark ? "#1a3320" : "#eaf3de") : "transparent", border: `0.5px solid ${saved ? (dark ? "#3a7a40" : "#3B6D11") : (dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)")}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 15, flexShrink: 0 }}>
+              {saved ? "🔖" : "🏷"}
+            </button>
+          </div>
+          {/* Description + meta below */}
+          <div style={{ padding: "0 14px 12px" }}>
+            <div style={{ fontSize: 13, color: subColor, lineHeight: 1.6, marginBottom: 8 }}>{recipe.description}</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: metaColor }}>⏱ {recipe.time}</span>
+              <span style={{ fontSize: 12, color: metaColor }}>🍽 {recipe.servings} servings</span>
+              {recipe.nutrition?.calories > 0 && <span style={{ fontSize: 12, color: metaColor }}>{recipe.nutrition.calories} cal</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{recipe.tags?.map(t => <Tag key={t} label={t} />)}</div>
           </div>
         </div>
       );
@@ -322,12 +322,15 @@
       const [activeFilter, setActiveFilter] = useState("All");
       const [activeRecipe, setActiveRecipe] = useState(null);
       const [cookbook, setCookbook] = useState([]);
+      const [menuOpen, setMenuOpen] = useState(false);
       const abortRef = useRef(null);
 
       const bg = dark ? "#121212" : "#fff";
       const titleColor = dark ? "#f0f0f0" : "#111";
       const subColor = dark ? "#aaa" : "#555";
       const metaColor = dark ? "#888" : "#777";
+      const cardBg = dark ? "#1e1e1e" : "#fff";
+      const border = dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)";
 
       useEffect(() => {
         try { const s = localStorage.getItem(STORAGE_KEY); if (s) setCookbook(JSON.parse(s)); } catch {}
@@ -358,7 +361,11 @@
         }
       }, []);
 
-      const handleFilter = f => { setActiveFilter(f); loadRecipes(f); };
+      const handleFilter = f => {
+        setActiveFilter(f);
+        setMenuOpen(false);
+        loadRecipes(f);
+      };
       const toggleSave = r => {
         const exists = cookbook.some(c => c.title === r.title);
         saveCookbook(exists ? cookbook.filter(c => c.title !== r.title) : [...cookbook, r]);
@@ -369,64 +376,75 @@
       if (view === "cookbook") return <CookbookView cookbook={cookbook} onOpen={setActiveRecipe} onRemove={t => saveCookbook(cookbook.filter(c => c.title !== t))} onBack={() => setView("feed")} />;
 
       return (
-        <div style={{ background: bg, minHeight: "100vh", padding: 16, maxWidth: 600, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 500, color: titleColor }}>GnomeChef</div>
-              <div style={{ fontSize: 13, color: subColor }}>From the minds behind GnomeTracker&trade;</div>
+        <div style={{ background: bg, minHeight: "100vh" }}>
+          {/* Header */}
+          <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: border, position: "sticky", top: 0, background: bg, zIndex: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button onClick={() => setMenuOpen(o => !o)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ display: "block", width: 22, height: 2, background: menuOpen ? "transparent" : (dark ? "#ccc" : "#333"), transition: "0.2s" }} />
+                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(45deg) translate(5px, -3px)" : "none" }} />
+                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(-45deg) translate(5px, 3px)" : "none" }} />
+              </button>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 600, color: titleColor, lineHeight: 1.2 }}>GnomeChef</div>
+                <div style={{ fontSize: 11, color: subColor }}>From the minds behind GnomeTracker™</div>
+              </div>
             </div>
             <button onClick={() => setView("cookbook")} style={{ background: "transparent", border: `0.5px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 13, color: dark ? "#e0e0e0" : "#1a1a1a" }}>
-              🔖 Cookbook{cookbook.length > 0 ? ` (${cookbook.length})` : ""}
+              🔖 {cookbook.length > 0 ? `(${cookbook.length})` : "Cookbook"}
             </button>
           </div>
 
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-            {/* Sidebar filters */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 130, flexShrink: 0 }}>
-              {FILTERS.map(f => (
-                <button key={f} onClick={() => handleFilter(f)} style={{
-                  padding: "7px 12px",
-                  border: `1px solid ${activeFilter === f ? (dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)") : "transparent"}`,
-                  borderRadius: 8,
-                  background: activeFilter === f ? (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)") : "transparent",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: activeFilter === f ? 500 : 400,
-                  color: activeFilter === f ? titleColor : metaColor,
-                  textAlign: "left",
-                  width: "100%",
-                }}>{f}</button>
-              ))}
+          {/* Filter drawer */}
+          {menuOpen && (
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }} onClick={() => setMenuOpen(false)}>
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 220, background: dark ? "#1a1a1a" : "#fff", borderRight: border, padding: "60px 12px 24px", display: "flex", flexDirection: "column", gap: 2 }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: metaColor, letterSpacing: "0.06em", padding: "0 8px", marginBottom: 8 }}>FILTER BY</div>
+                {FILTERS.map(f => (
+                  <button key={f} onClick={() => handleFilter(f)} style={{
+                    padding: "10px 12px", border: "none", borderRadius: 8,
+                    background: activeFilter === f ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)") : "transparent",
+                    cursor: "pointer", fontSize: 14, fontWeight: activeFilter === f ? 600 : 400,
+                    color: activeFilter === f ? titleColor : subColor, textAlign: "left", width: "100%",
+                  }}>{f}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
+          <div style={{ padding: "16px", maxWidth: 600, margin: "0 auto" }}>
+            <div style={{ fontSize: 13, color: metaColor, marginBottom: 14 }}>
+              {activeFilter === "All" ? "All healthy recipes" : activeFilter}
             </div>
 
-            {/* Recipe list */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {loading && (
+            {loading && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[1,2,3,4,5].map(i => <SkeletonCard key={i} dark={dark} />)}
+                <div style={{ textAlign: "center", fontSize: 13, color: metaColor, paddingTop: 4 }}>Loading recipes…</div>
+              </div>
+            )}
+
+            {error && !loading && (
+              <div style={{ textAlign: "center", padding: "2rem 0" }}>
+                <div style={{ fontSize: 13, color: "#cc3333", marginBottom: 4 }}>Couldn't load recipes.</div>
+                <div style={{ fontSize: 11, color: metaColor, marginBottom: 14, fontFamily: "monospace" }}>{error}</div>
+                <Btn onClick={() => loadRecipes(activeFilter, true)}>Try Again</Btn>
+              </div>
+            )}
+
+            {!loading && !error && (
+              <>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {[1,2,3,4,5].map(i => <SkeletonCard key={i} dark={dark} />)}
-                  <div style={{ textAlign: "center", fontSize: 13, color: metaColor, paddingTop: 4 }}>Loading recipes…</div>
+                  {recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={setActiveRecipe} onSave={toggleSave} saved={isSaved(r)} />)}
                 </div>
-              )}
-              {error && !loading && (
-                <div style={{ textAlign: "center", padding: "2rem 0" }}>
-                  <div style={{ fontSize: 13, color: "#cc3333", marginBottom: 4 }}>Couldn't load recipes.</div>
-                  <div style={{ fontSize: 11, color: metaColor, marginBottom: 14, fontFamily: "monospace" }}>{error}</div>
-                  <Btn onClick={() => loadRecipes(activeFilter, true)}>Try Again</Btn>
-                </div>
-              )}
-              {!loading && !error && (
-                <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={setActiveRecipe} onSave={toggleSave} saved={isSaved(r)} />)}
+                {recipes.length > 0 && (
+                  <div style={{ textAlign: "center", marginTop: 16, paddingBottom: 24 }}>
+                    <Btn onClick={() => loadRecipes(activeFilter, true)}>Refresh Feed ↻</Btn>
                   </div>
-                  {recipes.length > 0 && (
-                    <div style={{ textAlign: "center", marginTop: 16, paddingBottom: 24 }}>
-                      <Btn onClick={() => loadRecipes(activeFilter, true)}>Refresh Feed ↻</Btn>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       );
