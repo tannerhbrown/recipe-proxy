@@ -160,7 +160,6 @@ export default async function handler(req, res) {
 
   try {
     // Fetch a large pool so we have enough to filter from
-    const { tags, query, diet, ...rest } = params;
     const qs = new URLSearchParams({
       apiKey: SPOONACULAR_KEY,
       number: 100,
@@ -170,10 +169,11 @@ export default async function handler(req, res) {
       instructionsRequired: true,
       sort: "random",
       excludeTags: EXCLUDE_TAGS,
-      ...(tags && { tags }),
-      ...(query && { query }),
-      ...(diet && { diet }),
-      ...rest,
+    });
+
+    // Add filter-specific params individually to avoid spreading conflicts
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) qs.set(key, val);
     });
 
     const spoonResp = await fetch(`https://api.spoonacular.com/recipes/complexSearch?${qs}`);
