@@ -1,20 +1,88 @@
 const SPOONACULAR_KEY = process.env.SPOONACULAR_API_KEY;
 
 const FILTER_PARAMS = {
-  "All":               { tags: "healthy", minCalories: 100 },
-  "Quick & Easy":      { tags: "healthy", maxReadyTime: 30 },
-  "High Protein":      { tags: "healthy", minProtein: 25 },
-  "Low Carb":          { tags: "healthy", maxCarbs: 20 },
-  "Anti-Inflammatory": { tags: "healthy", minFiber: 3 },
-  "Paleo":             { tags: "healthy,paleo" },
-  "Whole30":           { tags: "healthy,whole30" },
-  "Mediterranean":     { tags: "healthy,mediterranean" },
-  "One-Pot/One-Pan":   { tags: "healthy,one-pot-or-one-pan" },
-  "Sheet Pan Meals":   { tags: "healthy" },
-  "Slow Cooker":       { tags: "healthy" },
-  "Air Fryer":         { tags: "healthy" },
-  "Instant Pot":       { tags: "healthy" },
+  "All": {
+    tags: "healthy",
+    minCalories: 150,
+  },
+  "Air Fryer": {
+    tags: "healthy",
+    query: "air fryer",
+    minCalories: 150,
+  },
+  "Anti-Inflammatory": {
+    tags: "healthy,anti-inflammatory",
+    minFiber: 3,
+    minCalories: 150,
+  },
+  "High Protein": {
+    tags: "healthy",
+    minProtein: 30,
+    minCalories: 200,
+  },
+  "Instant Pot": {
+    tags: "healthy",
+    query: "instant pot",
+    minCalories: 150,
+  },
+  "Low Carb": {
+    tags: "healthy",
+    maxCarbs: 20,
+    maxSugar: 5,
+    minCalories: 150,
+  },
+  "Mediterranean": {
+    tags: "healthy",
+    diet: "mediterranean",
+    minCalories: 150,
+  },
+  "One-Pot/One-Pan": {
+    tags: "healthy",
+    query: "one pot",
+    minCalories: 150,
+  },
+  "Paleo": {
+    tags: "healthy",
+    diet: "paleo",
+    minCalories: 150,
+  },
+  "Quick & Easy": {
+    tags: "healthy",
+    maxReadyTime: 25,
+    minCalories: 150,
+  },
+  "Sheet Pan Meals": {
+    tags: "healthy",
+    query: "sheet pan",
+    minCalories: 150,
+  },
+  "Slow Cooker": {
+    tags: "healthy",
+    query: "slow cooker",
+    minCalories: 150,
+  },
+  "Whole30": {
+    tags: "healthy",
+    diet: "whole30",
+    minCalories: 150,
+  },
 };
+
+const EXCLUDE_TAGS = [
+  "dessert",
+  "sweet",
+  "cocktail",
+  "beverage",
+  "drink",
+  "alcoholic-beverage",
+  "smoothie",
+  "juice",
+  "cake",
+  "cookie",
+  "pastry",
+  "candy",
+  "ice-cream",
+].join(",");
 
 const PREFERRED_SOURCES = [
   "cooking.nytimes.com",
@@ -92,6 +160,7 @@ export default async function handler(req, res) {
 
   try {
     // Fetch a large pool so we have enough to filter from
+    const { tags, query, diet, ...rest } = params;
     const qs = new URLSearchParams({
       apiKey: SPOONACULAR_KEY,
       number: 100,
@@ -100,7 +169,11 @@ export default async function handler(req, res) {
       fillIngredients: true,
       instructionsRequired: true,
       sort: "random",
-      ...params,
+      excludeTags: EXCLUDE_TAGS,
+      ...(tags && { tags }),
+      ...(query && { query }),
+      ...(diet && { diet }),
+      ...rest,
     });
 
     const spoonResp = await fetch(`https://api.spoonacular.com/recipes/complexSearch?${qs}`);
