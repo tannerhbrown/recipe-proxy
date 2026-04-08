@@ -12,62 +12,41 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { background: #fff; color: #111; }
-    @media (prefers-color-scheme: dark) {
-      body { background: #121212; color: #f0f0f0; }
-    }
+    @media (prefers-color-scheme: dark) { body { background: #121212; color: #f0f0f0; } }
     a { color: inherit; }
     button { font-family: inherit; }
   </style>
 </head>
 <body>
   <div id="root"></div>
-
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef } = React;
 
-    const PROXY_URL = "";  // same origin — index.html is served from the same Vercel project
+    const PROXY_URL = "";
     const STORAGE_KEY = "healthy-recipe-cookbook-v1";
     const CACHE_KEY = "healthy-recipe-cache-v1";
     const CACHE_TTL = 1000 * 60 * 30;
     const FILTERS = [
-      "All",
-      "Air Fryer",
-      "Anti-Inflammatory",
-      "High Protein",
-      "Instant Pot",
-      "Low Carb",
-      "Mediterranean",
-      "One-Pot/One-Pan",
-      "Paleo",
-      "Quick & Easy",
-      "Sheet Pan Meals",
-      "Slow Cooker",
-      "Whole30",
+      "All", "Air Fryer", "Anti-Inflammatory", "High Protein",
+      "Instant Pot", "Low Carb", "Mediterranean", "One-Pot/One-Pan",
+      "Paleo", "Quick & Easy", "Sheet Pan Meals", "Slow Cooker", "Whole30",
     ];
 
     function loadCache() {
       try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
     }
     function saveCache(c) {
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {} 
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
     }
 
     async function fetchRecipes(filter, signal) {
       const cache = loadCache();
       const hit = cache[filter];
       if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.recipes;
-
-      const resp = await fetch(
-        `${PROXY_URL}/api/recipes?filter=${encodeURIComponent(filter)}`,
-        { signal }
-      );
-      if (!resp.ok) {
-        const body = await resp.text();
-        throw new Error(`Proxy error ${resp.status}: ${body.slice(0, 200)}`);
-      }
+      const resp = await fetch(`${PROXY_URL}/api/recipes?filter=${encodeURIComponent(filter)}`, { signal });
+      if (!resp.ok) { const b = await resp.text(); throw new Error(`Proxy error ${resp.status}: ${b.slice(0,200)}`); }
       const data = await resp.json();
       if (!data.recipes?.length) throw new Error("No recipes returned");
-
       const updated = loadCache();
       updated[filter] = { ts: Date.now(), recipes: data.recipes };
       saveCache(updated);
@@ -78,9 +57,11 @@
       "Quick & Easy":      { light: { bg: "#EAF3DE", color: "#3B6D11" }, dark: { bg: "#1a2e10", color: "#a3d470" } },
       "High Protein":      { light: { bg: "#E6F1FB", color: "#185FA5" }, dark: { bg: "#0e2340", color: "#7ab8f5" } },
       "Low Carb":          { light: { bg: "#FAEEDA", color: "#854F0B" }, dark: { bg: "#2e1f08", color: "#f5b84a" } },
-      "Meal Prep":         { light: { bg: "#EEEDFE", color: "#534AB7" }, dark: { bg: "#1c1a40", color: "#a89cf5" } },
       "Anti-Inflammatory": { light: { bg: "#FBEAF0", color: "#993556" }, dark: { bg: "#2e1020", color: "#f590b0" } },
       "Healthy":           { light: { bg: "#E1F5EE", color: "#0F6E56" }, dark: { bg: "#0a2e20", color: "#5dcaa5" } },
+      "Paleo":             { light: { bg: "#FAEEDA", color: "#854F0B" }, dark: { bg: "#2e1f08", color: "#f5b84a" } },
+      "Whole30":           { light: { bg: "#EAF3DE", color: "#3B6D11" }, dark: { bg: "#1a2e10", color: "#a3d470" } },
+      "Mediterranean":     { light: { bg: "#E6F1FB", color: "#185FA5" }, dark: { bg: "#0e2340", color: "#7ab8f5" } },
     };
 
     function useIsDark() {
@@ -116,12 +97,10 @@
       const base = recipe.color || "#4a9a6a";
       const imgSrc = recipe.image || recipe.imageUrl || null;
       if (imgSrc && !imgErr) {
-        return <img src={imgSrc} alt={recipe.title} onError={() => setImgErr(true)}
-          style={{ width: size, minWidth: size, height: size, borderRadius: 10, objectFit: "cover", flexShrink: 0, display: "block" }} />;
+        return <img src={imgSrc} alt={recipe.title} onError={() => setImgErr(true)} style={{ width: size, minWidth: size, height: size, borderRadius: 10, objectFit: "cover", flexShrink: 0, display: "block" }} />;
       }
       return (
-        <div style={{ width: size, minWidth: size, height: size, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          background: dark ? `linear-gradient(135deg, ${base}55 0%, ${base}22 100%)` : `linear-gradient(135deg, ${base}33 0%, ${base}66 100%)` }}>
+        <div style={{ width: size, minWidth: size, height: size, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: dark ? `linear-gradient(135deg, ${base}55 0%, ${base}22 100%)` : `linear-gradient(135deg, ${base}33 0%, ${base}66 100%)` }}>
           <span style={{ fontSize: size * 0.45, lineHeight: 1 }}>{recipe.emoji || "🥗"}</span>
         </div>
       );
@@ -135,10 +114,8 @@
       const subColor = dark ? "#aaa" : "#555";
       const metaColor = dark ? "#888" : "#777";
       const linkColor = dark ? "#7ab8f5" : "#185FA5";
-
       return (
         <div style={{ background: cardBg, border, borderRadius: 14, overflow: "hidden", cursor: "pointer" }} onClick={() => onOpen(recipe)}>
-          {/* Image + save row */}
           <div style={{ display: "flex", gap: 12, padding: "12px 14px 8px", alignItems: "flex-start" }}>
             <RecipeCardImage recipe={recipe} size={64} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -153,7 +130,6 @@
               {saved ? "🔖" : "🏷"}
             </button>
           </div>
-          {/* Description + meta below */}
           <div style={{ padding: "0 14px 12px" }}>
             <div style={{ fontSize: 13, color: subColor, lineHeight: 1.6, marginBottom: 8 }}>{recipe.description}</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
@@ -173,16 +149,12 @@
       return (
         <div style={{ background: dark ? "#1e1e1e" : "#fff", border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", borderRadius: 14, overflow: "hidden" }}>
           <div style={{ display: "flex", gap: 12, padding: "12px 14px" }}>
-            <div style={{ width: 72, minWidth: 72, height: 72, borderRadius: 10, background: bg }} />
+            <div style={{ width: 64, minWidth: 64, height: 64, borderRadius: 10, background: bg }} />
             <div style={{ flex: 1 }}>
               <div style={{ height: 11, width: "35%", background: line, borderRadius: 6, marginBottom: 9 }} />
               <div style={{ height: 17, width: "70%", background: bg, borderRadius: 6, marginBottom: 9 }} />
               <div style={{ height: 12, width: "92%", background: line, borderRadius: 6, marginBottom: 6 }} />
-              <div style={{ height: 12, width: "55%", background: line, borderRadius: 6, marginBottom: 12 }} />
-              <div style={{ display: "flex", gap: 6 }}>
-                <div style={{ height: 20, width: 70, background: bg, borderRadius: 99 }} />
-                <div style={{ height: 20, width: 80, background: bg, borderRadius: 99 }} />
-              </div>
+              <div style={{ height: 12, width: "55%", background: line, borderRadius: 6 }} />
             </div>
           </div>
         </div>
@@ -223,7 +195,7 @@
             <span style={{ fontSize: 11, color: metaColor, fontWeight: 500, letterSpacing: "0.06em" }}>COOKING MODE</span>
           </div>
           <RecipeCardImage recipe={recipe} size={100} />
-          <div style={{ marginBottom: 14, marginTop: 14 }}>
+          <div style={{ marginTop: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: metaColor, marginBottom: 3 }}>{recipe.source}</div>
             <div style={{ fontSize: 20, fontWeight: 500, color: titleColor, lineHeight: 1.3, marginBottom: 6 }}>{recipe.title}</div>
             {recipe.url && <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: linkColor, textDecoration: "none", display: "block", marginBottom: 8 }}>View original recipe ↗</a>}
@@ -330,8 +302,7 @@
       const titleColor = dark ? "#f0f0f0" : "#111";
       const subColor = dark ? "#aaa" : "#555";
       const metaColor = dark ? "#888" : "#777";
-      const cardBg = dark ? "#1e1e1e" : "#fff";
-      const border = dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)";
+      const headerBorder = dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)";
 
       useEffect(() => {
         try { const s = localStorage.getItem(STORAGE_KEY); if (s) setCookbook(JSON.parse(s)); } catch {}
@@ -362,11 +333,7 @@
         }
       }, []);
 
-      const handleFilter = f => {
-        setActiveFilter(f);
-        setMenuOpen(false);
-        loadRecipes(f);
-      };
+      const handleFilter = f => { setActiveFilter(f); setMenuOpen(false); loadRecipes(f); };
       const toggleSave = r => {
         const exists = cookbook.some(c => c.title === r.title);
         saveCookbook(exists ? cookbook.filter(c => c.title !== r.title) : [...cookbook, r]);
@@ -379,41 +346,42 @@
       return (
         <div style={{ background: bg, minHeight: "100vh" }}>
           {/* Header */}
-          <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: border, position: "sticky", top: 0, background: bg, zIndex: 10 }}>
+          <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: headerBorder, position: "sticky", top: 0, background: bg, zIndex: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={() => setMenuOpen(o => !o)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ display: "block", width: 22, height: 2, background: menuOpen ? "transparent" : (dark ? "#ccc" : "#333"), transition: "0.2s" }} />
-                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(45deg) translate(5px, -3px)" : "none" }} />
-                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(-45deg) translate(5px, 3px)" : "none" }} />
+              {/* Hamburger */}
+              <button onClick={() => setMenuOpen(o => !o)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
+                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(45deg) translate(5px, 7px)" : "none" }} />
+                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", opacity: menuOpen ? 0 : 1 }} />
+                <span style={{ display: "block", width: 22, height: 2, background: dark ? "#ccc" : "#333", transition: "0.2s", transform: menuOpen ? "rotate(-45deg) translate(5px, -7px)" : "none" }} />
               </button>
-              <img src="/GT-Favicon.png" alt="GnomeChef" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
-                <div style={{ fontSize: 17, fontWeight: 600, color: titleColor, lineHeight: 1.2 }}>GnomeChef</div>
-                <div style={{ fontSize: 11, color: subColor }}>From the minds behind GnomeTracker™</div>
+              {/* Logo */}
+              <img src="/GT-Favicon.png" alt="GnomeChef" style={{ width: 30, height: 30, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+              {/* Title */}
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: titleColor, lineHeight: 1.2 }}>GnomeChef</div>
+                <div style={{ fontSize: 10, color: subColor }}>From the minds behind GnomeTracker™</div>
               </div>
             </div>
-            <button onClick={() => setView("cookbook")} style={{ background: "transparent", border: `0.5px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 13, color: dark ? "#e0e0e0" : "#1a1a1a" }}>
+            <button onClick={() => setView("cookbook")} style={{ background: "transparent", border: `0.5px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 13, color: dark ? "#e0e0e0" : "#1a1a1a", flexShrink: 0 }}>
               🔖 {cookbook.length > 0 ? `(${cookbook.length})` : "Cookbook"}
             </button>
           </div>
 
-          {/* Filter drawer */}
+          {/* Filter drawer overlay */}
           {menuOpen && (
-            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }} onClick={() => setMenuOpen(false)}>
-              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 220, background: dark ? "#1a1a1a" : "#fff", borderRight: border, padding: "60px 12px 24px", display: "flex", flexDirection: "column", gap: 2 }} onClick={e => e.stopPropagation()}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: metaColor, letterSpacing: "0.06em", padding: "0 8px", marginBottom: 8 }}>FILTER BY</div>
+            <div style={{ position: "fixed", inset: 0, zIndex: 20 }} onClick={() => setMenuOpen(false)}>
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 220, background: dark ? "#1a1a1a" : "#fff", borderRight: headerBorder, padding: "20px 12px 24px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: metaColor, letterSpacing: "0.06em", padding: "8px 8px 12px" }}>FILTER BY</div>
                 {FILTERS.map(f => (
-                  <button key={f} onClick={() => handleFilter(f)} style={{
-                    padding: "10px 12px", border: "none", borderRadius: 8,
-                    background: activeFilter === f ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)") : "transparent",
-                    cursor: "pointer", fontSize: 14, fontWeight: activeFilter === f ? 600 : 400,
-                    color: activeFilter === f ? titleColor : subColor, textAlign: "left", width: "100%",
-                  }}>{f}</button>
+                  <button key={f} onClick={() => handleFilter(f)} style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: activeFilter === f ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)") : "transparent", cursor: "pointer", fontSize: 14, fontWeight: activeFilter === f ? 600 : 400, color: activeFilter === f ? titleColor : subColor, textAlign: "left", width: "100%" }}>
+                    {f}
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Content */}
+          {/* Main content */}
           <div style={{ padding: "16px", maxWidth: 600, margin: "0 auto" }}>
             <div style={{ fontSize: 13, color: metaColor, marginBottom: 14 }}>
               {activeFilter === "All" ? "All healthy recipes" : activeFilter}
